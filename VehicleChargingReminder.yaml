@@ -48,7 +48,7 @@ blueprint:
     charger_connected_state:
       name: Charger Connected State
       description: State value representing the vehicle being plugged in.
-      default: "Plugged in"
+      default: "on"
       selector:
         text:
 
@@ -203,5 +203,6 @@ action:
                   value_template: "{{ is_state(charger, charger_state) }}"
               sequence:
                 - stop: "Vehicle plugged in"
+
 
 
