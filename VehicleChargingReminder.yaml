@@ -204,4 +204,3 @@ action:
               sequence:
                 - stop: "Vehicle plugged in"
 
-
