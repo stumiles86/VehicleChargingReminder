@@ -119,7 +119,7 @@ condition:
   - condition: template
     value_template: "{{ is_state(tracker, zone_required.split('.')[-1]) }}"
   - condition: template
-    value_template: "{{ not is_state(charger, charger_state) }}"
+    value_template: "{{ states(charger) != charger_state }}"
 
 action:
   - alias: "Send initial actionable notification"
@@ -150,7 +150,7 @@ action:
         - condition: template
           value_template: "{{ is_state(tracker, zone_required.split('.')[-1]) }}"
         - condition: template
-          value_template: "{{ not is_state(charger, charger_state) }}"
+          value_template: "{{ states(charger) != charger_state }}"
 
       sequence:
         - wait_for_trigger:
@@ -203,6 +203,7 @@ action:
                   value_template: "{{ is_state(charger, charger_state) }}"
               sequence:
                 - stop: "Vehicle plugged in"
+
 
 
 
