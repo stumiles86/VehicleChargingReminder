@@ -1,0 +1,207 @@
+blueprint:
+  name: 🚗 Vehicle Charging Reminder
+  description: >
+    Sends a mobile app notification to remind you to plug in your vehicle if:
+    - The vehicle is at home (within the selected zone)
+    - The battery is below a set threshold
+    - The vehicle is not plugged in
+
+    The notification includes actionable buttons:
+    - "Remind me later" (resends after a configurable snooze)
+    - "Ignore" (stops further notifications)
+
+    Default message includes the current battery percentage.  
+
+  domain: automation
+  source_url: https://github.com/stumiles86/VehicleChargingReminder
+
+  input:
+    battery_sensor:
+      name: Car Battery Sensor
+      description: Sensor entity that reports the vehicle's battery percentage.
+      selector:
+        entity:
+          domain: sensor
+          device_class: battery
+
+    vehicle_tracker:
+      name: Vehicle Location Tracker
+      description: Tracker entity that reports the vehicle's location.
+      selector:
+        entity:
+          domain: device_tracker
+
+    home_zone:
+      name: Zone Required For Reminder
+      description: The vehicle must be in this zone for notifications to trigger.
+      default: zone.home
+      selector:
+        entity:
+          domain: zone
+
+    charger_sensor:
+      name: Charger Status Sensor
+      description: Sensor indicating if the vehicle is plugged in.
+      selector:
+        entity: {}
+
+    charger_connected_state:
+      name: Charger Connected State
+      description: State value representing the vehicle being plugged in.
+      default: "Plugged in"
+      selector:
+        text:
+
+    battery_threshold:
+      name: Battery Percentage Set Point
+      description: Notify if battery is below this level.
+      default: 80
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+
+    reminder_time:
+      name: Reminder Time
+      description: Time of day to check and send the reminder.
+      selector:
+        time: {}
+
+    notify_device:
+      name: Device to notify
+      description: Device must have the Home Assistant Companion App to receive actionable notifications.
+      selector:
+        device:
+          integration: mobile_app
+
+    reminder_text:
+      name: Reminder Text
+      description: >
+        Custom reminder message.
+        Leave blank to use the default: 
+        "Vehicle battery is below <set point>% (currently at <current battery>%). Please plug the vehicle in."
+      default: ""
+      selector:
+        text:
+
+    snooze_minutes:
+      name: Snooze Time
+      description: Minutes before sending another reminder after "Remind me later" is pressed.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: minutes
+          mode: slider
+
+mode: restart
+
+trigger:
+  - platform: time
+    at: !input reminder_time
+
+variables:
+  battery_sensor: !input battery_sensor
+  tracker: !input vehicle_tracker
+  zone_required: !input home_zone
+  charger: !input charger_sensor
+  charger_state: !input charger_connected_state
+  threshold: !input battery_threshold
+  custom_message: !input reminder_text
+  device: !input notify_device
+
+condition:
+  - condition: template
+    value_template: "{{ states(battery_sensor) | float(0) < threshold }}"
+  - condition: template
+    value_template: "{{ is_state(tracker, zone_required.split('.')[-1]) }}"
+  - condition: template
+    value_template: "{{ not is_state(charger, charger_state) }}"
+
+action:
+  - alias: "Send initial actionable notification"
+    domain: mobile_app
+    type: notify
+    device_id: !input notify_device
+    title: "Vehicle Charging Reminder"
+    message: >
+      {% set current_batt = states(battery_sensor) | float(0) %}
+      {% if custom_message | length > 0 %}
+        {{ custom_message }}
+      {% else %}
+        Vehicle battery is below {{ threshold }}% (currently at {{ current_batt }}%). Please plug the vehicle in.
+      {% endif %}
+    data:
+      tag: vehicle_charging_reminder
+      actions:
+        - action: REMIND_LATER
+          title: "Remind me later"
+        - action: IGNORE
+          title: "Ignore"
+          destructive: true
+
+  - repeat:
+      while:
+        - condition: template
+          value_template: "{{ states(battery_sensor) | float(0) < threshold }}"
+        - condition: template
+          value_template: "{{ is_state(tracker, zone_required.split('.')[-1]) }}"
+        - condition: template
+          value_template: "{{ not is_state(charger, charger_state) }}"
+
+      sequence:
+        - wait_for_trigger:
+            - platform: event
+              event_type: mobile_app_notification_action
+              event_data:
+                action: REMIND_LATER
+            - platform: event
+              event_type: mobile_app_notification_action
+              event_data:
+                action: IGNORE
+            - platform: state
+              entity_id: !input charger_sensor
+
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ wait.trigger.event.data.action == 'REMIND_LATER' }}"
+              sequence:
+                - delay:
+                    minutes: !input snooze_minutes
+                - alias: "Send snoozed actionable notification"
+                  domain: mobile_app
+                  type: notify
+                  device_id: !input notify_device
+                  title: "Vehicle Charging Reminder"
+                  message: >
+                    {% set current_batt = states(battery_sensor) | float(0) %}
+                    {% if custom_message | length > 0 %}
+                      {{ custom_message }}
+                    {% else %}
+                      Vehicle battery is below {{ threshold }}% (currently at {{ current_batt }}%). Please plug the vehicle in.
+                    {% endif %}
+                  data:
+                    tag: vehicle_charging_reminder
+                    actions:
+                      - action: REMIND_LATER
+                        title: "Remind me later"
+                      - action: IGNORE
+                        title: "Ignore"
+
+            - conditions:
+                - condition: template
+                  value_template: "{{ wait.trigger.event.data.action == 'IGNORE' }}"
+              sequence:
+                - stop: "User ignored reminder"
+
+            - conditions:
+                - condition: template
+                  value_template: "{{ is_state(charger, charger_state) }}"
+              sequence:
+                - stop: "Vehicle plugged in"
+
+
