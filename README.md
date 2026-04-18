@@ -56,7 +56,7 @@ or manually:
 2. If all conditions are met, a notification is sent to your mobile device.  
 3. Notification includes **buttons**:  
 - **Remind me later** → notification comes back after the snooze period  
-- **Ignore** → stops further notifications for the day  
+- **Dismiss** → stops further notifications for the day  
 
 ---
 
