@@ -8,7 +8,7 @@ blueprint:
 
     The notification includes actionable buttons:
     - "Remind me later" (resends after a configurable snooze)
-    - "Ignore" (stops further notifications)
+    - "Dismiss" (stops further notifications)
 
     Default message includes the current battery percentage.  
 
@@ -139,8 +139,8 @@ action:
       actions:
         - action: REMIND_LATER
           title: "Remind me later"
-        - action: IGNORE
-          title: "Ignore"
+        - action: DISMISS
+          title: "Dismiss"
           destructive: true
 
   - repeat:
@@ -161,7 +161,7 @@ action:
             - platform: event
               event_type: mobile_app_notification_action
               event_data:
-                action: IGNORE
+                action: DISMISS
             - platform: state
               entity_id: !input charger_sensor
 
@@ -189,14 +189,14 @@ action:
                     actions:
                       - action: REMIND_LATER
                         title: "Remind me later"
-                      - action: IGNORE
-                        title: "Ignore"
+                      - action: DISMISS
+                        title: "Dismiss"
 
             - conditions:
                 - condition: template
-                  value_template: "{{ wait.trigger.event.data.action == 'IGNORE' }}"
+                  value_template: "{{ wait.trigger.event.data.action == 'DISMISS' }}"
               sequence:
-                - stop: "User ignored reminder"
+                - stop: "User dismissed reminder"
 
             - conditions:
                 - condition: template
